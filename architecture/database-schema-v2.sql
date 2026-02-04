@@ -1,16 +1,18 @@
 -- =====================================================
--- 提案展示系统数据库架构 V2.0
--- 基于最终设计方案更新
+-- 提案展示系统数据库架构 V3.0
+-- 基于PRD V2.0和V4编辑器设计
 -- 数据库: PostgreSQL 15+
--- 版本: 2.0
+-- 版本: 3.0
 -- 最后更新: 2026-02-04
--- 更新内容：
---   - 添加AI生成历史表
---   - 添加素材库表
---   - 更新版本管理表结构
---   - 添加产品报价相关表
---   - 添加模块配置表
---   - 添加自动保存快照表
+-- 更新内容（V3.0）：
+--   - 支持所有12个模块类型（Hero, Insight, Manifesto, Floorplan, Storage, Rendering, Gallery, Moodboard, Technical, Delivery, Quotation, Ending）
+--   - 完整版本控制系统（版本快照、差异对比、回滚）
+--   - 自动保存快照表（3-5秒防抖保存）
+--   - 作品集导入跟踪（用户自主选择章节）
+--   - AI使用历史表（支持所有12个模块的AI功能）
+--   - 产品报价管理表
+--   - 素材库管理表
+--   - ERP集成表
 -- =====================================================
 
 -- 启用必要的扩展
@@ -224,13 +226,14 @@ $$ LANGUAGE plpgsql;
 -- 6. 提案模块配置表（新增）
 -- =====================================================
 
--- 模块配置表
+-- 模块配置表（支持所有12个模块类型）
 CREATE TABLE proposal_modules (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     proposal_id UUID NOT NULL REFERENCES proposals(id) ON DELETE CASCADE,
     module_type VARCHAR(50) NOT NULL CHECK (module_type IN (
-        'hero', 'insight', 'manifesto', 'floorplan',
-        'rendering', 'gallery', 'moodboard', 'quotation', 'delivery'
+        'hero', 'insight', 'manifesto', 'floorplan', 'storage',
+        'rendering', 'gallery', 'moodboard', 'technical', 'delivery',
+        'quotation', 'ending'
     )),
     module_order INTEGER NOT NULL,
     module_data JSONB NOT NULL, -- 模块具体数据
@@ -397,14 +400,18 @@ CREATE TABLE user_ai_configs (
 CREATE INDEX idx_user_ai_configs_user_id ON user_ai_configs(user_id);
 CREATE INDEX idx_user_ai_configs_company_id ON user_ai_configs(company_id);
 
--- AI生成历史表（核心表）
+-- AI生成历史表（核心表 - 支持所有12个模块）
 CREATE TABLE ai_generation_history (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
     proposal_id UUID REFERENCES proposals(id) ON DELETE SET NULL,
-    module_type VARCHAR(50), -- 关联的模块类型（如果是上下文感知AI）
-    generation_type VARCHAR(50) NOT NULL CHECK (generation_type IN ('image', 'text', 'suggestion')),
+    module_type VARCHAR(50) CHECK (module_type IN (
+        'hero', 'insight', 'manifesto', 'floorplan', 'storage',
+        'rendering', 'gallery', 'moodboard', 'technical', 'delivery',
+        'quotation', 'ending'
+    )), -- 关联的模块类型（如果是上下文感知AI）
+    generation_type VARCHAR(50) NOT NULL CHECK (generation_type IN ('image', 'text', 'suggestion', 'layout', 'color_scheme')),
     trigger_source VARCHAR(50) NOT NULL CHECK (trigger_source IN ('module_context', 'global_tool')),
     provider_name VARCHAR(50) NOT NULL,
     model_name VARCHAR(100) NOT NULL,
@@ -560,6 +567,7 @@ CREATE TABLE portfolios (
     seo_description TEXT,
     seo_keywords TEXT[],
     is_public BOOLEAN DEFAULT FALSE,
+    is_featured BOOLEAN DEFAULT FALSE,
     view_count INTEGER DEFAULT 0,
     owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
@@ -570,19 +578,39 @@ CREATE TABLE portfolios (
 CREATE INDEX idx_portfolios_owner_id ON portfolios(owner_id);
 CREATE INDEX idx_portfolios_slug ON portfolios(slug);
 CREATE INDEX idx_portfolios_is_public ON portfolios(is_public);
+CREATE INDEX idx_portfolios_is_featured ON portfolios(is_featured);
 
--- 作品集提案关联表
+-- 作品集提案关联表（支持章节选择导入）
 CREATE TABLE portfolio_proposals (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     portfolio_id UUID NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
     proposal_id UUID NOT NULL REFERENCES proposals(id) ON DELETE CASCADE,
+    selected_modules TEXT[], -- 用户选择保留的模块类型数组
     sort_order INTEGER DEFAULT 0,
+    project_type VARCHAR(50),
+    completion_date DATE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(portfolio_id, proposal_id)
 );
 
 CREATE INDEX idx_portfolio_proposals_portfolio_id ON portfolio_proposals(portfolio_id);
 CREATE INDEX idx_portfolio_proposals_proposal_id ON portfolio_proposals(proposal_id);
+
+-- 作品集导入历史表
+CREATE TABLE portfolio_import_history (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    portfolio_id UUID NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
+    proposal_id UUID NOT NULL REFERENCES proposals(id) ON DELETE CASCADE,
+    original_modules TEXT[], -- 原始提案的所有模块
+    selected_modules TEXT[], -- 用户选择保留的模块
+    removed_modules TEXT[], -- 被移除的模块
+    import_config JSONB, -- 导入配置（推荐配置、快速选择等）
+    imported_by UUID NOT NULL REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_portfolio_import_history_portfolio_id ON portfolio_import_history(portfolio_id);
+CREATE INDEX idx_portfolio_import_history_proposal_id ON portfolio_import_history(proposal_id);
 
 -- =====================================================
 -- 12. 预约管理

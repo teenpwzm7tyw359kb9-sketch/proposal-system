@@ -1,9 +1,10 @@
-# API规范文档 V2.0
+# API规范文档 V3.0
 ## 提案展示系统 RESTful API
 
-**版本**: 2.0
+**版本**: 3.0
 **基础URL**: `https://api.proposal-system.com/v1`
 **更新日期**: 2026-02-04
+**更新内容**: 支持12个模块类型、完整版本控制、作品集导入、AI全模块集成
 
 ---
 
@@ -11,16 +12,17 @@
 
 1. [认证授权](#1-认证授权)
 2. [提案管理](#2-提案管理)
-3. [自动保存与版本管理](#3-自动保存与版本管理)
-4. [产品报价管理](#4-产品报价管理)
-5. [AI集成](#5-ai集成)
-6. [素材库管理](#6-素材库管理)
-7. [模板管理](#7-模板管理)
-8. [作品集管理](#8-作品集管理)
-9. [预约管理](#9-预约管理)
-10. [ERP集成](#10-erp集成)
-11. [分析统计](#11-分析统计)
-12. [错误处理](#12-错误处理)
+3. [模块管理](#3-模块管理)
+4. [自动保存与版本管理](#4-自动保存与版本管理)
+5. [产品报价管理](#5-产品报价管理)
+6. [AI集成](#6-ai集成)
+7. [素材库管理](#7-素材库管理)
+8. [模板管理](#8-模板管理)
+9. [作品集管理](#9-作品集管理)
+10. [预约管理](#10-预约管理)
+11. [ERP集成](#11-erp集成)
+12. [分析统计](#12-分析统计)
+13. [错误处理](#13-错误处理)
 
 ---
 
@@ -280,7 +282,214 @@ Response 200:
 
 ---
 
-## 3. 自动保存与版本管理
+## 3. 模块管理
+
+### 3.1 获取所有可用模块类型
+```http
+GET /modules/types
+Authorization: Bearer {access_token}
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "module_types": [
+      {
+        "type": "hero",
+        "display_name": "英雄封面",
+        "category": "基础模块",
+        "description": "全屏背景图片+项目标题",
+        "icon": "hero-icon",
+        "is_featured": true
+      },
+      {
+        "type": "insight",
+        "display_name": "设计理念",
+        "category": "基础模块",
+        "description": "左右分栏布局，左文右图"
+      },
+      {
+        "type": "manifesto",
+        "display_name": "设计宣言",
+        "category": "基础模块",
+        "description": "深色背景，左侧文字右侧图片"
+      },
+      {
+        "type": "floorplan",
+        "display_name": "平面图对比",
+        "category": "设计展示",
+        "description": "前后对比功能",
+        "is_featured": true
+      },
+      {
+        "type": "storage",
+        "display_name": "收纳方案",
+        "category": "设计展示",
+        "description": "网格布局展示多个收纳区域",
+        "is_featured": true
+      },
+      {
+        "type": "rendering",
+        "display_name": "渲染图+热点",
+        "category": "设计展示",
+        "description": "主渲染图+热点标记系统",
+        "is_featured": true
+      },
+      {
+        "type": "gallery",
+        "display_name": "效果图画廊",
+        "category": "设计展示",
+        "description": "分类展示效果图",
+        "is_featured": true
+      },
+      {
+        "type": "moodboard",
+        "display_name": "情绪板",
+        "category": "设计展示",
+        "description": "材料色板+参考图片",
+        "is_featured": true
+      },
+      {
+        "type": "technical",
+        "display_name": "技术说明",
+        "category": "项目信息",
+        "description": "材料规格、施工工艺、环保标准"
+      },
+      {
+        "type": "delivery",
+        "display_name": "交付计划",
+        "category": "项目信息",
+        "description": "分阶段交付计划"
+      },
+      {
+        "type": "quotation",
+        "display_name": "产品报价",
+        "category": "项目信息",
+        "description": "报价单编号和产品清单"
+      },
+      {
+        "type": "ending",
+        "display_name": "结尾页面",
+        "category": "其他",
+        "description": "感谢标题+公司信息"
+      }
+    ]
+  }
+}
+```
+
+### 3.2 添加模块到提案
+```http
+POST /proposals/{proposal_id}/modules
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+{
+  "module_type": "hero",
+  "module_order": 1,
+  "module_data": {
+    "title_zh": "春江花园别墅",
+    "title_en": "Spring Garden Villa",
+    "subtitle_zh": "现代简约 · 温馨雅致",
+    "subtitle_en": "Modern Minimalist · Cozy Elegance",
+    "client_name": "李先生",
+    "button_text": "进入叙事空间",
+    "background_image": "https://...",
+    "text_color": "#FFFFFF",
+    "text_position": "center"
+  }
+}
+
+Response 201:
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "module_type": "hero",
+    "module_order": 1,
+    "module_data": {...},
+    "created_at": "2026-02-04T10:00:00Z"
+  }
+}
+```
+
+### 3.3 更新模块
+```http
+PATCH /proposals/{proposal_id}/modules/{module_id}
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+{
+  "module_data": {
+    "title_zh": "春江花园别墅（修订版）"
+  }
+}
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "module_type": "hero",
+    "module_data": {...},
+    "updated_at": "2026-02-04T11:00:00Z"
+  }
+}
+```
+
+### 3.4 删除模块
+```http
+DELETE /proposals/{proposal_id}/modules/{module_id}
+Authorization: Bearer {access_token}
+
+Response 204: No Content
+```
+
+### 3.5 重新排序模块
+```http
+POST /proposals/{proposal_id}/modules/reorder
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+{
+  "module_orders": [
+    {"module_id": "uuid-1", "order": 1},
+    {"module_id": "uuid-2", "order": 2},
+    {"module_id": "uuid-3", "order": 3}
+  ]
+}
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "message": "模块顺序已更新",
+    "updated_count": 3
+  }
+}
+```
+
+### 3.6 复制模块
+```http
+POST /proposals/{proposal_id}/modules/{module_id}/duplicate
+Authorization: Bearer {access_token}
+
+Response 201:
+{
+  "success": true,
+  "data": {
+    "id": "new-uuid",
+    "module_type": "hero",
+    "module_order": 2,
+    "module_data": {...},
+    "created_at": "2026-02-04T11:30:00Z"
+  }
+}
+```
+
+---
+
+## 4. 自动保存与版本管理
 
 ### 3.1 自动保存快照（增量保存）
 ```http
